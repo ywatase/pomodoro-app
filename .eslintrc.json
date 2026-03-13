@@ -1,0 +1,13 @@
+{
+  "extends": ["eslint:recommended", "plugin:svelte/recommended"],
+  "parserOptions": {
+    "sourceType": "module",
+    "ecmaVersion": 2022,
+    "extraFileExtensions": [".svelte"]
+  },
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  }
+}
