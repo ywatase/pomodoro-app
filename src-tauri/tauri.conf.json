@@ -15,12 +15,21 @@
         "title": "tomatask",
         "width": 400,
         "height": 500,
-        "resizable": false
+        "resizable": false,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {
       "csp": null
+    },
+    "trayIcon": {
+      "id": "tomatask-tray",
+      "iconPath": "icons/32x32.png",
+      "iconAsTemplate": true
     }
+  },
+  "plugins": {
+    "store": {}
   },
   "bundle": {
     "active": true,
