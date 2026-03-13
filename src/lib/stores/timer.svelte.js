@@ -1,0 +1,124 @@
+/**
+ * ポモドーロタイマーの状態管理ストア
+ * - 3モード: work(25分) / short(5分) / long(15分)
+ * - 4ポモドーロ後に長休憩へ自動遷移
+ * - localStorage による状態永続化
+ */
+
+const DURATIONS = {
+  work: 25 * 60,
+  short: 5 * 60,
+  long: 15 * 60,
+};
+
+const STORAGE_KEY = 'tomatask_state';
+
+function createTimerStore() {
+  let mode = $state('work');
+  let remaining = $state(DURATIONS.work);
+  let running = $state(false);
+  let completedPomodoros = $state(0);
+  let intervalId = null;
+
+  function save() {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        mode,
+        remaining,
+        running: false,
+        completedPomodoros,
+      })
+    );
+  }
+
+  function restore() {
+    if (typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const s = JSON.parse(raw);
+      mode = s.mode ?? 'work';
+      remaining = s.remaining ?? DURATIONS[mode];
+      completedPomodoros = s.completedPomodoros ?? 0;
+      running = false;
+    } catch {
+      // 破損データは無視
+    }
+  }
+
+  function tick() {
+    if (remaining <= 0) {
+      clearInterval(intervalId);
+      intervalId = null;
+      running = false;
+      onTimerEnd();
+      return;
+    }
+    remaining -= 1;
+    save();
+  }
+
+  function onTimerEnd() {
+    if (mode === 'work') {
+      completedPomodoros += 1;
+      // 4ポモドーロ達成で長休憩へ自動遷移
+      const nextMode = completedPomodoros % 4 === 0 ? 'long' : 'short';
+      switchMode(nextMode);
+    } else {
+      switchMode('work');
+    }
+    save();
+  }
+
+  function startTimer() {
+    if (running) return;
+    running = true;
+    intervalId = setInterval(tick, 1000);
+    save();
+  }
+
+  function pauseTimer() {
+    if (!running) return;
+    clearInterval(intervalId);
+    intervalId = null;
+    running = false;
+    save();
+  }
+
+  function resetTimer() {
+    pauseTimer();
+    remaining = DURATIONS[mode];
+    save();
+  }
+
+  function switchMode(newMode) {
+    pauseTimer();
+    mode = newMode;
+    remaining = DURATIONS[newMode];
+    save();
+  }
+
+  return {
+    get mode() {
+      return mode;
+    },
+    get remaining() {
+      return remaining;
+    },
+    get running() {
+      return running;
+    },
+    get completedPomodoros() {
+      return completedPomodoros;
+    },
+    startTimer,
+    pauseTimer,
+    resetTimer,
+    switchMode,
+    restore,
+  };
+}
+
+export const timerStore = createTimerStore();
