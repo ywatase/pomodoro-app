@@ -2,6 +2,8 @@
   import { onDestroy, onMount } from 'svelte';
   import { timerStore } from '$lib/stores/timer.svelte.js';
   import { startRepeatNotification, stopRepeatNotification } from '$lib/notification.js';
+  import { playNotificationSound } from '$lib/audio.js';
+  import { settingsStore } from '$lib/stores/settings.svelte.js';
 
   const MODE_LABELS = {
     work: '作業',
@@ -41,9 +43,14 @@
 
   onMount(() => {
     timerStore.restore();
-    // タイマー終了時に繰り返し通知を開始
+    settingsStore.load();
+    // タイマー終了時に音声 + 繰り返し通知を開始
     timerStore.onEnd((endedMode, count) => {
-      startRepeatNotification(endedMode, count);
+      const { audioEnabled, audioVolume, notificationEnabled } = settingsStore.settings;
+      playNotificationSound(endedMode, audioVolume, audioEnabled);
+      if (notificationEnabled) {
+        startRepeatNotification(endedMode, count);
+      }
     });
   });
 
