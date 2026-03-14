@@ -4,6 +4,13 @@
   import { startRepeatNotification, stopRepeatNotification } from '$lib/notification.js';
   import { playNotificationSound } from '$lib/audio.js';
   import { settingsStore } from '$lib/stores/settings.svelte.js';
+  import {
+    startIdleRemind,
+    stopIdleRemind,
+    snoozeIdleRemind,
+    unsnoozeIdleRemind,
+    isSnoozed,
+  } from '$lib/idleRemind.js';
 
   const MODE_LABELS = {
     work: '作業',
@@ -25,38 +32,75 @@
     return `${m}:${s}`;
   }
 
-  /** ユーザーアクション時は繰り返し通知を停止する */
+  function getIdleSettings() {
+    const { idleRemindEnabled, idleRemindInterval } = settingsStore.settings;
+    return { idleRemindEnabled, idleRemindInterval };
+  }
+
+  /** ユーザーアクション時は各種通知を停止してタイマー開始 */
   function handleStart() {
     stopRepeatNotification();
+    stopIdleRemind();
     timerStore.startTimer();
+  }
+
+  function handlePause() {
+    timerStore.pauseTimer();
+    // 一時停止時はアイドルリマインド開始
+    const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+    startIdleRemind(idleRemindInterval, idleRemindEnabled);
   }
 
   function handleReset() {
     stopRepeatNotification();
+    stopIdleRemind();
     timerStore.resetTimer();
+    // リセット後はアイドル検知開始
+    const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+    startIdleRemind(idleRemindInterval, idleRemindEnabled);
   }
 
   function handleSwitchMode(m) {
     stopRepeatNotification();
+    stopIdleRemind();
     timerStore.switchMode(m);
+  }
+
+  function handleSnooze() {
+    if (isSnoozed()) {
+      const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+      unsnoozeIdleRemind(idleRemindInterval, idleRemindEnabled);
+    } else {
+      snoozeIdleRemind();
+    }
   }
 
   onMount(() => {
     timerStore.restore();
-    settingsStore.load();
-    // タイマー終了時に音声 + 繰り返し通知を開始
+    settingsStore.load().then(() => {
+      // 起動時にタイマーが止まっていればアイドル検知開始
+      if (!timerStore.running) {
+        const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+        startIdleRemind(idleRemindInterval, idleRemindEnabled);
+      }
+    });
+
+    // タイマー終了時に音声 + 繰り返し通知 + アイドル検知開始
     timerStore.onEnd((endedMode, count) => {
-      const { audioEnabled, audioVolume, notificationEnabled } = settingsStore.settings;
+      const { audioEnabled, audioVolume, notificationEnabled, idleRemindEnabled, idleRemindInterval } =
+        settingsStore.settings;
       playNotificationSound(endedMode, audioVolume, audioEnabled);
       if (notificationEnabled) {
         startRepeatNotification(endedMode, count);
       }
+      startIdleRemind(idleRemindInterval, idleRemindEnabled);
     });
   });
 
   onDestroy(() => {
     timerStore.pauseTimer();
     stopRepeatNotification();
+    stopIdleRemind();
   });
 </script>
 
@@ -89,12 +133,20 @@
 
   <div class="controls">
     {#if timerStore.running}
-      <button class="btn btn-pause" onclick={() => timerStore.pauseTimer()}>一時停止</button>
+      <button class="btn btn-pause" onclick={handlePause}>一時停止</button>
     {:else}
       <button class="btn btn-start" onclick={handleStart}>開始</button>
     {/if}
     <button class="btn btn-reset" onclick={handleReset}>リセット</button>
   </div>
+
+  {#if settingsStore.settings.idleRemindEnabled}
+    <div class="idle-snooze">
+      <button class="btn-snooze" onclick={handleSnooze}>
+        {isSnoozed() ? '🔔 リマインド再開' : '🔕 今日はスヌーズ'}
+      </button>
+    </div>
+  {/if}
 </main>
 
 <style>
@@ -206,5 +258,25 @@
 
   .btn-reset:hover {
     background: rgba(255, 255, 255, 0.2);
+  }
+
+  .idle-snooze {
+    margin-top: 0.5rem;
+  }
+
+  .btn-snooze {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #aaa;
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .btn-snooze:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
   }
 </style>
