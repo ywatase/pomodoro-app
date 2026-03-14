@@ -21,6 +21,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             // システムトレイのメニュー構築
             let show_hide = MenuItem::with_id(app, "show_hide", "表示/非表示", true, None::<&str>)?;

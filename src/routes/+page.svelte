@@ -11,6 +11,7 @@
     unsnoozeIdleRemind,
     isSnoozed,
   } from '$lib/idleRemind.js';
+  import { appendObsidianLog } from '$lib/obsidian.js';
 
   const MODE_LABELS = {
     work: '作業',
@@ -87,13 +88,24 @@
 
     // タイマー終了時に音声 + 繰り返し通知 + アイドル検知開始
     timerStore.onEnd((endedMode, count) => {
-      const { audioEnabled, audioVolume, notificationEnabled, idleRemindEnabled, idleRemindInterval } =
-        settingsStore.settings;
+      const {
+        audioEnabled,
+        audioVolume,
+        notificationEnabled,
+        idleRemindEnabled,
+        idleRemindInterval,
+        obsidianVaultPath,
+        obsidianLogSection,
+      } = settingsStore.settings;
       playNotificationSound(endedMode, audioVolume, audioEnabled);
       if (notificationEnabled) {
         startRepeatNotification(endedMode, count);
       }
       startIdleRemind(idleRemindInterval, idleRemindEnabled);
+      // 作業セッション完了時のみ Obsidian ログを追記
+      if (endedMode === 'work' && obsidianVaultPath) {
+        appendObsidianLog(obsidianVaultPath, count, obsidianLogSection);
+      }
     });
   });
 
