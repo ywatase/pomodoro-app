@@ -13,6 +13,8 @@
   } from '$lib/idleRemind.js';
   import { appendObsidianLog } from '$lib/obsidian.js';
   import { goto } from '$app/navigation';
+  import { tasksStore } from '$lib/stores/tasks.svelte.js';
+  import TaskList from '$lib/components/TaskList.svelte';
 
   const MODE_LABELS = {
     work: '作業',
@@ -81,6 +83,7 @@
     settingsStore.load().then(() => {
       timerStore.injectSettingsStore(settingsStore);
       timerStore.restore();
+      tasksStore.load();
       // 起動時にタイマーが止まっていればアイドル検知開始
       if (!timerStore.running) {
         const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
@@ -104,9 +107,12 @@
         startRepeatNotification(endedMode, count);
       }
       startIdleRemind(idleRemindInterval, idleRemindEnabled);
-      // 作業セッション完了時のみ Obsidian ログを追記
-      if (endedMode === 'work' && obsidianVaultPath) {
-        appendObsidianLog(obsidianVaultPath, count, obsidianLogSection);
+      // 作業セッション完了時のみ Obsidian ログ追記とタスクカウント更新
+      if (endedMode === 'work') {
+        tasksStore.incrementPomodoro(null);
+        if (obsidianVaultPath) {
+          appendObsidianLog(obsidianVaultPath, count, obsidianLogSection);
+        }
       }
     });
   });
@@ -154,6 +160,10 @@
     <button class="btn btn-reset" onclick={handleReset}>リセット</button>
   </div>
 
+  <div class="task-section">
+    <TaskList />
+  </div>
+
   {#if settingsStore.settings.idleRemindEnabled}
     <div class="idle-snooze">
       <button class="btn-snooze" onclick={handleSnooze}>
@@ -178,10 +188,16 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    height: 100vh;
-    gap: 1.5rem;
-    padding: 1rem;
+    justify-content: flex-start;
+    min-height: 100vh;
+    gap: 1rem;
+    padding: 1.5rem 1rem 3rem;
+    overflow-y: auto;
+  }
+
+  .task-section {
+    width: 100%;
+    max-width: 360px;
   }
 
   .session-info {
