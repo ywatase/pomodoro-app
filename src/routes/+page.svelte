@@ -15,6 +15,7 @@
   import { goto } from '$app/navigation';
   import { tasksStore } from '$lib/stores/tasks.svelte.js';
   import TaskList from '$lib/components/TaskList.svelte';
+  import ObsidianSync from '$lib/components/ObsidianSync.svelte';
 
   const MODE_LABELS = {
     work: '作業',
@@ -162,6 +163,10 @@
 
   <div class="task-section">
     <TaskList />
+    {#if settingsStore.settings.obsidianVaultPath}
+      <hr class="divider" />
+      <ObsidianSync />
+    {/if}
   </div>
 
   {#if settingsStore.settings.idleRemindEnabled}
@@ -198,6 +203,12 @@
   .task-section {
     width: 100%;
     max-width: 360px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin: 0.8rem 0;
   }
 
   .session-info {
