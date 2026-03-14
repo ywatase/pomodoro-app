@@ -1,6 +1,7 @@
 <script>
   import { onDestroy, onMount } from 'svelte';
   import { timerStore } from '$lib/stores/timer.svelte.js';
+  import { startRepeatNotification, stopRepeatNotification } from '$lib/notification.js';
 
   const MODE_LABELS = {
     work: '作業',
@@ -22,8 +23,34 @@
     return `${m}:${s}`;
   }
 
-  onMount(() => timerStore.restore());
-  onDestroy(() => timerStore.pauseTimer());
+  /** ユーザーアクション時は繰り返し通知を停止する */
+  function handleStart() {
+    stopRepeatNotification();
+    timerStore.startTimer();
+  }
+
+  function handleReset() {
+    stopRepeatNotification();
+    timerStore.resetTimer();
+  }
+
+  function handleSwitchMode(m) {
+    stopRepeatNotification();
+    timerStore.switchMode(m);
+  }
+
+  onMount(() => {
+    timerStore.restore();
+    // タイマー終了時に繰り返し通知を開始
+    timerStore.onEnd((endedMode, count) => {
+      startRepeatNotification(endedMode, count);
+    });
+  });
+
+  onDestroy(() => {
+    timerStore.pauseTimer();
+    stopRepeatNotification();
+  });
 </script>
 
 <main style="--accent: {MODE_COLORS[timerStore.mode]}">
@@ -42,7 +69,7 @@
         role="tab"
         aria-selected={timerStore.mode === m}
         class:active={timerStore.mode === m}
-        onclick={() => timerStore.switchMode(m)}
+        onclick={() => handleSwitchMode(m)}
       >
         {MODE_LABELS[m]}
       </button>
@@ -57,9 +84,9 @@
     {#if timerStore.running}
       <button class="btn btn-pause" onclick={() => timerStore.pauseTimer()}>一時停止</button>
     {:else}
-      <button class="btn btn-start" onclick={() => timerStore.startTimer()}>開始</button>
+      <button class="btn btn-start" onclick={handleStart}>開始</button>
     {/if}
-    <button class="btn btn-reset" onclick={() => timerStore.resetTimer()}>リセット</button>
+    <button class="btn btn-reset" onclick={handleReset}>リセット</button>
   </div>
 </main>
 
