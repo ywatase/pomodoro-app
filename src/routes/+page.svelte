@@ -12,6 +12,7 @@
     isSnoozed,
   } from '$lib/idleRemind.js';
   import { appendObsidianLog } from '$lib/obsidian.js';
+  import { goto } from '$app/navigation';
 
   const MODE_LABELS = {
     work: '作業',
@@ -77,8 +78,9 @@
   }
 
   onMount(() => {
-    timerStore.restore();
     settingsStore.load().then(() => {
+      timerStore.injectSettingsStore(settingsStore);
+      timerStore.restore();
       // 起動時にタイマーが止まっていればアイドル検知開始
       if (!timerStore.running) {
         const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
@@ -159,6 +161,8 @@
       </button>
     </div>
   {/if}
+
+  <button class="btn-settings" onclick={() => goto('/settings')} aria-label="設定">⚙</button>
 </main>
 
 <style>
@@ -290,5 +294,28 @@
   .btn-snooze:hover {
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
+  }
+
+  .btn-settings {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #888;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .btn-settings:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
   }
 </style>
