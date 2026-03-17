@@ -40,6 +40,7 @@
     timerStore.resetTimer();
   }
 
+  /** @param {string} m */
   function handleSwitchMode(m) {
     stopRepeatNotification();
     timerStore.switchMode(m);

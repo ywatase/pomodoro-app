@@ -19,6 +19,7 @@ const MODE_LABELS = {
   long: '長休憩',
 };
 
+/** @type {number|null} */
 let _repeatTimer = null;
 
 /**

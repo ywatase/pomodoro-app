@@ -24,6 +24,7 @@ function createTimerStore() {
   let intervalId;
 
   /** タイマー終了時に呼ばれるコールバック一覧 */
+  /** @type {Function[]} */
   const _onEndCallbacks = [];
 
   function save() {
