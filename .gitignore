@@ -1,0 +1,27 @@
+# Node.js / bun
+node_modules/
+.svelte-kit/
+build/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env
+.env
+.env.local
+
+# Lock files (keep bun.lockb)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
