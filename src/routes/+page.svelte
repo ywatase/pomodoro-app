@@ -40,7 +40,7 @@
     timerStore.resetTimer();
   }
 
-  /** @param {string} m */
+  /** @param {'work'|'short'|'long'} m */
   function handleSwitchMode(m) {
     stopRepeatNotification();
     timerStore.switchMode(m);
