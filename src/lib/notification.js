@@ -13,12 +13,6 @@ import {
 
 const REPEAT_INTERVAL_MS = 30_000;
 
-const MODE_LABELS = {
-  work: '作業',
-  short: '短休憩',
-  long: '長休憩',
-};
-
 /** @type {number|null} */
 let _repeatTimer = null;
 
