@@ -3,6 +3,7 @@
  * - 3モード: work(25分) / short(5分) / long(15分)
  * - 4ポモドーロ後に長休憩へ自動遷移
  * - localStorage による状態永続化
+ * - タイマー終了時コールバック対応
  */
 
 const DURATIONS = {
@@ -21,6 +22,10 @@ function createTimerStore() {
   let completedPomodoros = $state(0);
   /** @type {ReturnType<typeof setInterval> | undefined} */
   let intervalId;
+
+  /** タイマー終了時に呼ばれるコールバック一覧 */
+  /** @type {Function[]} */
+  const _onEndCallbacks = [];
 
   function save() {
     if (typeof localStorage === 'undefined') return;
@@ -63,6 +68,7 @@ function createTimerStore() {
   }
 
   function onTimerEnd() {
+    const endedMode = mode;
     if (mode === 'work') {
       completedPomodoros += 1;
       // 4ポモドーロ達成で長休憩へ自動遷移
@@ -72,6 +78,10 @@ function createTimerStore() {
       switchMode('work');
     }
     save();
+    // 登録されたコールバックを呼ぶ
+    for (const cb of _onEndCallbacks) {
+      cb(endedMode, completedPomodoros);
+    }
   }
 
   function startTimer() {
@@ -103,6 +113,14 @@ function createTimerStore() {
     save();
   }
 
+  /**
+   * タイマー終了時コールバックを登録する
+   * @param {(endedMode: string, completedPomodoros: number) => void} cb
+   */
+  function onEnd(cb) {
+    _onEndCallbacks.push(cb);
+  }
+
   return {
     get mode() {
       return mode;
@@ -121,6 +139,7 @@ function createTimerStore() {
     resetTimer,
     switchMode,
     restore,
+    onEnd,
   };
 }
 
