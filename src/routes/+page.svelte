@@ -1,23 +1,66 @@
 <script>
-  import { invoke } from '@tauri-apps/api/core';
+  import { onDestroy, onMount } from 'svelte';
+  import { timerStore } from '$lib/stores/timer.svelte.js';
 
-  let name = $state('');
-  let greetMsg = $state('');
+  const MODE_LABELS = {
+    work: '作業',
+    short: '短休憩',
+    long: '長休憩',
+  };
 
-  async function greet(event) {
-    event.preventDefault();
-    greetMsg = await invoke('greet', { name });
+  const MODE_COLORS = {
+    work: '#e74c3c',
+    short: '#27ae60',
+    long: '#2980b9',
+  };
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60)
+      .toString()
+      .padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
   }
+
+  onMount(() => timerStore.restore());
+  onDestroy(() => timerStore.pauseTimer());
 </script>
 
-<main class="container">
-  <h1>tomatask</h1>
-  <p>ローカル完結のポモドーロタイマー</p>
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
+<main style="--accent: {MODE_COLORS[timerStore.mode]}">
+  <div class="session-info">
+    <span class="session-count">🍅 × {timerStore.completedPomodoros}</span>
+    {#if timerStore.completedPomodoros > 0}
+      <span class="session-hint">
+        あと {4 - (timerStore.completedPomodoros % 4)} セットで長休憩
+      </span>
+    {/if}
+  </div>
+
+  <div class="mode-tabs" role="tablist">
+    {#each ['work', 'short', 'long'] as m}
+      <button
+        role="tab"
+        aria-selected={timerStore.mode === m}
+        class:active={timerStore.mode === m}
+        onclick={() => timerStore.switchMode(m)}
+      >
+        {MODE_LABELS[m]}
+      </button>
+    {/each}
+  </div>
+
+  <div class="timer" aria-live="polite">
+    {formatTime(timerStore.remaining)}
+  </div>
+
+  <div class="controls">
+    {#if timerStore.running}
+      <button class="btn btn-pause" onclick={() => timerStore.pauseTimer()}>一時停止</button>
+    {:else}
+      <button class="btn btn-start" onclick={() => timerStore.startTimer()}>開始</button>
+    {/if}
+    <button class="btn btn-reset" onclick={() => timerStore.resetTimer()}>リセット</button>
+  </div>
 </main>
 
 <style>
@@ -26,16 +69,108 @@
     background: #1a1a2e;
     color: #eee;
     font-family: 'Segoe UI', system-ui, sans-serif;
+    user-select: none;
   }
 
-  .container {
-    margin: 0;
-    padding-top: 10vh;
+  main {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    text-align: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 1.5rem;
+    padding: 1rem;
+  }
+
+  .session-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 3rem;
+  }
+
+  .session-count {
+    font-size: 1.4rem;
+  }
+
+  .session-hint {
+    font-size: 0.8rem;
+    color: #aaa;
+  }
+
+  .mode-tabs {
+    display: flex;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.25rem;
+    border-radius: 8px;
+  }
+
+  .mode-tabs button {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    padding: 0.4rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+  }
+
+  .mode-tabs button.active {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .timer {
+    font-size: 6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    text-shadow: 0 0 30px color-mix(in srgb, var(--accent) 40%, transparent);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .controls {
+    display: flex;
     gap: 1rem;
+  }
+
+  .btn {
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+
+  .btn:active {
+    transform: scale(0.97);
+  }
+
+  .btn-start {
+    background: var(--accent);
+    color: #fff;
+    min-width: 120px;
+  }
+
+  .btn-pause {
+    background: #f39c12;
+    color: #fff;
+    min-width: 120px;
+  }
+
+  .btn-reset {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ccc;
+  }
+
+  .btn-reset:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 </style>
