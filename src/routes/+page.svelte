@@ -2,18 +2,24 @@
   import { onDestroy, onMount } from 'svelte';
   import { timerStore } from '$lib/stores/timer.svelte.js';
 
+  /** @type {readonly ('work' | 'short' | 'long')[]} */
+  const MODES = ['work', 'short', 'long'];
+
+  /** @type {Record<string, string>} */
   const MODE_LABELS = {
     work: '作業',
     short: '短休憩',
     long: '長休憩',
   };
 
+  /** @type {Record<string, string>} */
   const MODE_COLORS = {
     work: '#e74c3c',
     short: '#27ae60',
     long: '#2980b9',
   };
 
+  /** @param {number} seconds */
   function formatTime(seconds) {
     const m = Math.floor(seconds / 60)
       .toString()
@@ -37,7 +43,7 @@
   </div>
 
   <div class="mode-tabs" role="tablist">
-    {#each ['work', 'short', 'long'] as m}
+    {#each MODES as m}
       <button
         role="tab"
         aria-selected={timerStore.mode === m}

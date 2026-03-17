@@ -28,9 +28,7 @@
       "iconAsTemplate": true
     }
   },
-  "plugins": {
-    "store": {}
-  },
+  "plugins": {},
   "bundle": {
     "active": true,
     "targets": "all",

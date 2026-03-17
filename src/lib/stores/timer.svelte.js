@@ -14,11 +14,13 @@ const DURATIONS = {
 const STORAGE_KEY = 'tomatask_state';
 
 function createTimerStore() {
+  /** @type {'work' | 'short' | 'long'} */
   let mode = $state('work');
   let remaining = $state(DURATIONS.work);
   let running = $state(false);
   let completedPomodoros = $state(0);
-  let intervalId = null;
+  /** @type {ReturnType<typeof setInterval> | undefined} */
+  let intervalId;
 
   function save() {
     if (typeof localStorage === 'undefined') return;
@@ -51,7 +53,7 @@ function createTimerStore() {
   function tick() {
     if (remaining <= 0) {
       clearInterval(intervalId);
-      intervalId = null;
+      intervalId = undefined;
       running = false;
       onTimerEnd();
       return;
@@ -82,7 +84,7 @@ function createTimerStore() {
   function pauseTimer() {
     if (!running) return;
     clearInterval(intervalId);
-    intervalId = null;
+    intervalId = undefined;
     running = false;
     save();
   }
@@ -93,6 +95,7 @@ function createTimerStore() {
     save();
   }
 
+  /** @param {'work' | 'short' | 'long'} newMode */
   function switchMode(newMode) {
     pauseTimer();
     mode = newMode;
