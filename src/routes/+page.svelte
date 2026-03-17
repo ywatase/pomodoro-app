@@ -1,6 +1,21 @@
 <script>
   import { onDestroy, onMount } from 'svelte';
   import { timerStore } from '$lib/stores/timer.svelte.js';
+  import { startRepeatNotification, stopRepeatNotification } from '$lib/notification.js';
+  import { playNotificationSound } from '$lib/audio.js';
+  import { settingsStore } from '$lib/stores/settings.svelte.js';
+  import {
+    startIdleRemind,
+    stopIdleRemind,
+    snoozeIdleRemind,
+    unsnoozeIdleRemind,
+    isSnoozed,
+  } from '$lib/idleRemind.js';
+  import { appendObsidianLog } from '$lib/obsidian.js';
+  import { goto } from '$app/navigation';
+  import { tasksStore } from '$lib/stores/tasks.svelte.js';
+  import TaskList from '$lib/components/TaskList.svelte';
+  import ObsidianSync from '$lib/components/ObsidianSync.svelte';
 
   /** @type {readonly ('work' | 'short' | 'long')[]} */
   const MODES = ['work', 'short', 'long'];
@@ -28,8 +43,92 @@
     return `${m}:${s}`;
   }
 
-  onMount(() => timerStore.restore());
-  onDestroy(() => timerStore.pauseTimer());
+  function getIdleSettings() {
+    const { idleRemindEnabled, idleRemindInterval } = settingsStore.settings;
+    return { idleRemindEnabled, idleRemindInterval };
+  }
+
+  /** ユーザーアクション時は各種通知を停止してタイマー開始 */
+  function handleStart() {
+    stopRepeatNotification();
+    stopIdleRemind();
+    timerStore.startTimer();
+  }
+
+  function handlePause() {
+    timerStore.pauseTimer();
+    // 一時停止時はアイドルリマインド開始
+    const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+    startIdleRemind(idleRemindInterval, idleRemindEnabled);
+  }
+
+  function handleReset() {
+    stopRepeatNotification();
+    stopIdleRemind();
+    timerStore.resetTimer();
+    // リセット後はアイドル検知開始
+    const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+    startIdleRemind(idleRemindInterval, idleRemindEnabled);
+  }
+
+  function handleSwitchMode(m) {
+    stopRepeatNotification();
+    stopIdleRemind();
+    timerStore.switchMode(m);
+  }
+
+  function handleSnooze() {
+    if (isSnoozed()) {
+      const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+      unsnoozeIdleRemind(idleRemindInterval, idleRemindEnabled);
+    } else {
+      snoozeIdleRemind();
+    }
+  }
+
+  onMount(() => {
+    settingsStore.load().then(() => {
+      timerStore.injectSettingsStore(settingsStore);
+      timerStore.restore();
+      tasksStore.load();
+      // 起動時にタイマーが止まっていればアイドル検知開始
+      if (!timerStore.running) {
+        const { idleRemindEnabled, idleRemindInterval } = getIdleSettings();
+        startIdleRemind(idleRemindInterval, idleRemindEnabled);
+      }
+    });
+
+    // タイマー終了時に音声 + 繰り返し通知 + アイドル検知開始
+    timerStore.onEnd((endedMode, count) => {
+      const {
+        audioEnabled,
+        audioVolume,
+        notificationEnabled,
+        idleRemindEnabled,
+        idleRemindInterval,
+        obsidianVaultPath,
+        obsidianLogSection,
+      } = settingsStore.settings;
+      playNotificationSound(endedMode, audioVolume, audioEnabled);
+      if (notificationEnabled) {
+        startRepeatNotification(endedMode, count);
+      }
+      startIdleRemind(idleRemindInterval, idleRemindEnabled);
+      // 作業セッション完了時のみ Obsidian ログ追記とタスクカウント更新
+      if (endedMode === 'work') {
+        tasksStore.incrementPomodoro(null);
+        if (obsidianVaultPath) {
+          appendObsidianLog(obsidianVaultPath, count, obsidianLogSection);
+        }
+      }
+    });
+  });
+
+  onDestroy(() => {
+    timerStore.pauseTimer();
+    stopRepeatNotification();
+    stopIdleRemind();
+  });
 </script>
 
 <main style="--accent: {MODE_COLORS[timerStore.mode]}">
@@ -48,7 +147,7 @@
         role="tab"
         aria-selected={timerStore.mode === m}
         class:active={timerStore.mode === m}
-        onclick={() => timerStore.switchMode(m)}
+        onclick={() => handleSwitchMode(m)}
       >
         {MODE_LABELS[m]}
       </button>
@@ -61,12 +160,30 @@
 
   <div class="controls">
     {#if timerStore.running}
-      <button class="btn btn-pause" onclick={() => timerStore.pauseTimer()}>一時停止</button>
+      <button class="btn btn-pause" onclick={handlePause}>一時停止</button>
     {:else}
-      <button class="btn btn-start" onclick={() => timerStore.startTimer()}>開始</button>
+      <button class="btn btn-start" onclick={handleStart}>開始</button>
     {/if}
-    <button class="btn btn-reset" onclick={() => timerStore.resetTimer()}>リセット</button>
+    <button class="btn btn-reset" onclick={handleReset}>リセット</button>
   </div>
+
+  <div class="task-section">
+    <TaskList />
+    {#if settingsStore.settings.obsidianVaultPath}
+      <hr class="divider" />
+      <ObsidianSync />
+    {/if}
+  </div>
+
+  {#if settingsStore.settings.idleRemindEnabled}
+    <div class="idle-snooze">
+      <button class="btn-snooze" onclick={handleSnooze}>
+        {isSnoozed() ? '🔔 リマインド再開' : '🔕 今日はスヌーズ'}
+      </button>
+    </div>
+  {/if}
+
+  <button class="btn-settings" onclick={() => goto('/settings')} aria-label="設定">⚙</button>
 </main>
 
 <style>
@@ -82,10 +199,22 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    height: 100vh;
-    gap: 1.5rem;
-    padding: 1rem;
+    justify-content: flex-start;
+    min-height: 100vh;
+    gap: 1rem;
+    padding: 1.5rem 1rem 3rem;
+    overflow-y: auto;
+  }
+
+  .task-section {
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin: 0.8rem 0;
   }
 
   .session-info {
@@ -178,5 +307,48 @@
 
   .btn-reset:hover {
     background: rgba(255, 255, 255, 0.2);
+  }
+
+  .idle-snooze {
+    margin-top: 0.5rem;
+  }
+
+  .btn-snooze {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #aaa;
+    padding: 0.3rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .btn-snooze:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+  }
+
+  .btn-settings {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #888;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .btn-settings:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
   }
 </style>

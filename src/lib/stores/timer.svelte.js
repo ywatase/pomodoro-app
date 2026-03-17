@@ -3,24 +3,59 @@
  * - 3モード: work(25分) / short(5分) / long(15分)
  * - 4ポモドーロ後に長休憩へ自動遷移
  * - localStorage による状態永続化
+ * - タイマー終了時コールバック対応
+ * - 設定からタイマー時間を動的取得
  */
 
-const DURATIONS = {
+/** デフォルト時間（秒）。設定が読み込まれるまでのフォールバック。 */
+const DEFAULT_DURATIONS = {
   work: 25 * 60,
   short: 5 * 60,
   long: 15 * 60,
 };
+
+/** 設定ストアへの参照（循環参照を避けるため遅延 import） */
+let _settingsStore = null;
+async function getSettingsStore() {
+  if (!_settingsStore) {
+    const mod = await import('./settings.svelte.js');
+    _settingsStore = mod.settingsStore;
+  }
+  return _settingsStore;
+}
+
+function getDurations() {
+  if (_settingsStore) {
+    const s = _settingsStore.settings;
+    return {
+      work: (s.workDuration ?? 25) * 60,
+      short: (s.shortBreakDuration ?? 5) * 60,
+      long: (s.longBreakDuration ?? 15) * 60,
+    };
+  }
+  return { ...DEFAULT_DURATIONS };
+}
+
+function getPomodorosUntilLong() {
+  if (_settingsStore) {
+    return _settingsStore.settings.pomodorosUntilLongBreak ?? 4;
+  }
+  return 4;
+}
 
 const STORAGE_KEY = 'tomatask_state';
 
 function createTimerStore() {
   /** @type {'work' | 'short' | 'long'} */
   let mode = $state('work');
-  let remaining = $state(DURATIONS.work);
+  let remaining = $state(DEFAULT_DURATIONS.work);
   let running = $state(false);
   let completedPomodoros = $state(0);
   /** @type {ReturnType<typeof setInterval> | undefined} */
   let intervalId;
+
+  /** タイマー終了時に呼ばれるコールバック一覧 */
+  const _onEndCallbacks = [];
 
   function save() {
     if (typeof localStorage === 'undefined') return;
@@ -42,7 +77,7 @@ function createTimerStore() {
     try {
       const s = JSON.parse(raw);
       mode = s.mode ?? 'work';
-      remaining = s.remaining ?? DURATIONS[mode];
+      remaining = s.remaining ?? getDurations()[mode];
       completedPomodoros = s.completedPomodoros ?? 0;
       running = false;
     } catch {
@@ -63,15 +98,21 @@ function createTimerStore() {
   }
 
   function onTimerEnd() {
+    const endedMode = mode;
     if (mode === 'work') {
       completedPomodoros += 1;
-      // 4ポモドーロ達成で長休憩へ自動遷移
-      const nextMode = completedPomodoros % 4 === 0 ? 'long' : 'short';
+      // 設定のポモドーロ数達成で長休憩へ自動遷移
+      const n = getPomodorosUntilLong();
+      const nextMode = completedPomodoros % n === 0 ? 'long' : 'short';
       switchMode(nextMode);
     } else {
       switchMode('work');
     }
     save();
+    // 登録されたコールバックを呼ぶ
+    for (const cb of _onEndCallbacks) {
+      cb(endedMode, completedPomodoros);
+    }
   }
 
   function startTimer() {
@@ -91,7 +132,7 @@ function createTimerStore() {
 
   function resetTimer() {
     pauseTimer();
-    remaining = DURATIONS[mode];
+    remaining = getDurations()[mode];
     save();
   }
 
@@ -99,8 +140,21 @@ function createTimerStore() {
   function switchMode(newMode) {
     pauseTimer();
     mode = newMode;
-    remaining = DURATIONS[newMode];
+    remaining = getDurations()[newMode];
     save();
+  }
+
+  /** 設定ストアを注入する（循環参照回避のため外部から呼ぶ） */
+  function injectSettingsStore(store) {
+    _settingsStore = store;
+  }
+
+  /**
+   * タイマー終了時コールバックを登録する
+   * @param {(endedMode: string, completedPomodoros: number) => void} cb
+   */
+  function onEnd(cb) {
+    _onEndCallbacks.push(cb);
   }
 
   return {
@@ -121,6 +175,8 @@ function createTimerStore() {
     resetTimer,
     switchMode,
     restore,
+    onEnd,
+    injectSettingsStore,
   };
 }
 
